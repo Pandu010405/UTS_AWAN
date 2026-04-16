@@ -24,39 +24,42 @@ const s3 = new AWS.S3({
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// --- FITUR 1: DASHBOARD / VIEW DATA ---
 app.get('/', (req, res) => {
-    db.query('SELECT * FROM laporan_kesehatan', (err, results) => {
+    db.query('SELECT * FROM laporan_kesehatan ORDER BY id DESC', (err, results) => {
         if (err) return res.send(err);
-        res.send(`<h1>HealthTrack Dashboard</h1><pre>${JSON.stringify(results, null, 2)}</pre>`);
+        
+        // Template HTML Dashboard
+        let rows = results.map(row => `
+            <tr>
+                <td>${row.nama}</td>
+                <td>${row.deskripsi}</td>
+                <td><img src="${row.foto_url}" width="100"></td>
+            </tr>
+        `).join('');
+
+        res.send(`
+            <html>
+            <head>
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+                <title>HealthTrack Cloud</title>
+            </head>
+            <body class="container mt-5">
+                <h1 class="mb-4">Dashboard Laporan Kesehatan - Pandu</h1>
+                <div class="card p-4 mb-4">
+                    <h3>Kirim Laporan Baru</h3>
+                    <form action="/lapor" method="POST" enctype="multipart/form-data">
+                        <input type="text" name="nama_pelapor" class="form-control mb-2" placeholder="Nama Anda" required>
+                        <textarea name="deskripsi" class="form-control mb-2" placeholder="Deskripsi Laporan" required></textarea>
+                        <input type="file" name="foto" class="form-control mb-2" required>
+                        <button type="submit" class="btn btn-primary">Kirim ke Cloud</button>
+                    </form>
+                </div>
+                <table class="table table-striped">
+                    <thead><tr><th>Nama</th><th>Deskripsi</th><th>Foto</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </body>
+            </html>
+        `);
     });
-});
-
-// --- FITUR 2 & 3: INPUT LAPORAN & UPLOAD FOTO KE S3 ---
-app.post('/lapor', upload.single('foto'), (req, res) => {
-    const { nama_pelapor, deskripsi } = req.body;
-    const file = req.file;
-
-    const params = {
-        Bucket: process.env.S3_BUCKET,
-        Key: `${Date.now()}_${file.originalname}`,
-        Body: file.buffer,
-        ContentType: file.mimetype
-    };
-
-    // Upload ke S3 [cite: 48]
-    s3.upload(params, (err, data) => {
-        if (err) return res.status(500).send(err);
-
-        // Simpan URL S3 dan data ke RDS [cite: 50]
-        const query = 'INSERT INTO laporan_kesehatan (nama, deskripsi, foto_url) VALUES (?, ?, ?)';
-        db.query(query, [nama_pelapor, deskripsi, data.Location], (err, result) => {
-            if (err) return res.status(500).send(err);
-            res.send('Laporan Berhasil Terkirim ke Cloud!');
-        });
-    });
-});
-
-app.listen(3000, () => {
-    console.log('Aplikasi HealthTrack berjalan di port 3000');
 });
