@@ -18,9 +18,22 @@ jobs:
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            # Jika folder belum ada, clone pertama kali. Jika sudah ada, tinggal pull.
+            if [ ! -d "~/UTS_AWAN" ]; then
+              git clone https://github.com/Pandu010405/UTS_AWAN.git ~/UTS_AWAN
+            fi
             cd ~/UTS_AWAN
             git pull origin main
             docker build -t health-app .
             docker stop health-container || true
             docker rm health-container || true
-            docker run -d --name health-container -p 80:3000 health-app
+            # Jalankan di port 80 agar bisa diakses langsung lewat IP tanpa ketik :3000
+            docker run -d --name health-container -p 80:3000 \
+              -e DB_HOST=${{ secrets.DB_HOST }} \
+              -e DB_USER=${{ secrets.DB_USER }} \
+              -e DB_PASS=${{ secrets.DB_PASS }} \
+              -e DB_NAME=${{ secrets.DB_NAME }} \
+              -e AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }} \
+              -e AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }} \
+              -e S3_BUCKET=${{ secrets.S3_BUCKET }} \
+              health-app
