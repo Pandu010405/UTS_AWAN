@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HealthTrack Flask</title>
+    <title>HealthTrack Cloud</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
@@ -14,14 +14,18 @@
             <div class="card-body">
                 <h5 id="form-title">Input Laporan Baru</h5>
                 <div class="row g-2">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <input type="text" id="nama" class="form-control" placeholder="Nama" required>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <input type="text" id="status" class="form-control" placeholder="Status" required>
                     </div>
-                    <div class="col-md-4">
-                        <input type="text" id="catatan" class="form-control" placeholder="Catatan (Opsional)">
+                    <div class="col-md-3">
+                        <input type="text" id="catatan" class="form-control" placeholder="Catatan">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="file" id="foto" class="form-control">
+                        <small class="text-muted" id="foto-help">Kosongkan saat edit jika tidak ganti foto.</small>
                     </div>
                     <div class="col-md-2">
                         <button id="btn-simpan" onclick="kirimData()" class="btn btn-success w-100">Simpan</button>
@@ -32,7 +36,7 @@
 
         <table class="table table-hover bg-white rounded shadow-sm">
             <thead class="table-dark">
-                <tr><th>Nama</th><th>Status</th><th>Catatan</th><th class="text-center">Aksi</th></tr>
+                <tr><th>Nama</th><th>Status</th><th>Catatan</th><th>Foto</th><th class="text-center">Aksi</th></tr>
             </thead>
             <tbody>
                 {% for item in laporan %}
@@ -40,6 +44,15 @@
                     <td>{{ item.nama }}</td>
                     <td><span class="badge bg-info">{{ item.status }}</span></td>
                     <td>{{ item.catatan }}</td>
+                    <td>
+                        {% if item.foto_url %}
+                        <a href="{{ item.foto_url }}" target="_blank">
+                            <img src="{{ item.foto_url }}" width="50" height="50" style="object-fit: cover;" class="rounded border">
+                        </a>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
                     <td class="text-center">
                         <button class="btn btn-sm btn-warning me-1" onclick="siapkanEdit('{{ item.id }}', '{{ item.nama }}', '{{ item.status }}', '{{ item.catatan }}')">Edit</button>
                         <button class="btn btn-sm btn-danger" onclick="hapusData('{{ item.id }}')">Hapus</button>
@@ -51,23 +64,22 @@
     </div>
 
     <script>
-        // Variabel penanda apakah kita sedang nambah data baru atau ngedit data lama
         let editModeId = null;
 
-        // Fungsi untuk melempar data dari tabel ke form input
         function siapkanEdit(id, nama, status, catatan) {
             editModeId = id;
             document.getElementById('nama').value = nama;
             document.getElementById('status').value = status;
             document.getElementById('catatan').value = catatan === "-" ? "" : catatan;
             
-            // Ubah tampilan form agar user tahu ini mode edit
+            // Note: Input file (foto) tidak bisa diisi otomatis lewat JS demi keamanan browser.
+            // Jadi dibiarkan kosong.
+
             document.getElementById('form-title').innerText = "Edit Laporan";
             document.getElementById('btn-simpan').innerText = "Update";
             document.getElementById('btn-simpan').classList.replace('btn-success', 'btn-warning');
         }
 
-        // Fungsi untuk menghapus data
         async function hapusData(id) {
             if (!confirm("Yakin ingin menghapus laporan ini?")) return;
 
@@ -79,34 +91,37 @@
             }
         }
 
-        // Fungsi untuk mengirim data (bisa POST untuk tambah, bisa PUT untuk update)
         async function kirimData() {
-            const nilaiCatatan = document.getElementById('catatan').value || "-";
+            // PENTING: Menggunakan FormData agar bisa kirim text + file gambar sekaligus
+            const formData = new FormData();
+            formData.append('nama', document.getElementById('nama').value);
+            formData.append('status', document.getElementById('status').value);
+            formData.append('catatan', document.getElementById('catatan').value || "-");
 
-            const payload = {
-                nama: document.getElementById('nama').value,
-                status: document.getElementById('status').value,
-                catatan: nilaiCatatan
-            };
+            const fotoFile = document.getElementById('foto').files[0];
+            if (fotoFile) {
+                formData.append('foto', fotoFile);
+            }
 
-            if(!payload.nama || !payload.status) {
+            if(!formData.get('nama') || !formData.get('status')) {
                 alert("Nama dan Status wajib diisi ya!");
                 return;
             }
 
-            // Tentukan URL dan Method berdasarkan mode (Edit atau Tambah)
             const url = editModeId ? `/api/lapor/${editModeId}` : '/api/lapor';
             const method = editModeId ? 'PUT' : 'POST';
 
+            // Tidak perlu set 'Content-Type' manual kalau pakai FormData
             const response = await fetch(url, {
                 method: method,
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
+                body: formData 
             });
 
             if (response.ok) {
-                alert(editModeId ? "Data berhasil diupdate!" : "Mantap! Data masuk.");
+                alert(editModeId ? "Data berhasil diupdate!" : "Mantap! Data & Foto masuk Cloud.");
                 location.reload(); 
+            } else {
+                alert("Waduh, terjadi kesalahan saat mengirim data.");
             }
         }
     </script>
